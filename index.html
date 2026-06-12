@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Add a Photo to The Wongs' Calendar 📸</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 20px;
+      padding: 40px 36px;
+      max-width: 480px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+      text-align: center;
+    }
+
+    .emoji { font-size: 48px; margin-bottom: 12px; }
+
+    h1 {
+      font-size: 1.6rem;
+      color: #1a1a2e;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      color: #666;
+      font-size: 0.95rem;
+      margin-bottom: 30px;
+      line-height: 1.5;
+    }
+
+    .drop-zone {
+      border: 2.5px dashed #c4b5fd;
+      border-radius: 14px;
+      padding: 36px 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #fafafa;
+      margin-bottom: 20px;
+    }
+
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: #764ba2;
+      background: #f3eeff;
+    }
+
+    .drop-zone .icon { font-size: 36px; margin-bottom: 10px; }
+    .drop-zone p { color: #555; font-size: 0.95rem; }
+    .drop-zone .hint { color: #999; font-size: 0.82rem; margin-top: 6px; }
+
+    #fileInput { display: none; }
+
+    .preview-wrap {
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .preview-wrap img {
+      max-width: 100%;
+      max-height: 260px;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    }
+
+    .preview-name {
+      font-size: 0.82rem;
+      color: #888;
+      margin-top: 8px;
+    }
+
+    .change-btn {
+      font-size: 0.82rem;
+      color: #764ba2;
+      cursor: pointer;
+      text-decoration: underline;
+      background: none;
+      border: none;
+      margin-top: 4px;
+    }
+
+    .send-btn {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      font-size: 1.05rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+
+    .send-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+    .send-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    .status {
+      margin-top: 18px;
+      padding: 14px 18px;
+      border-radius: 10px;
+      font-size: 0.93rem;
+      display: none;
+    }
+
+    .status.success {
+      background: #d1fae5;
+      color: #065f46;
+      display: block;
+    }
+
+    .status.error {
+      background: #fee2e2;
+      color: #991b1b;
+      display: block;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2.5px solid rgba(255,255,255,0.4);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .footer {
+      margin-top: 24px;
+      font-size: 0.78rem;
+      color: #bbb;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="emoji">🖼️</div>
+    <h1>Add to The Wongs' Calendar</h1>
+    <p class="subtitle">Upload a photo and it'll appear on their Skylight frame!</p>
+
+    <div class="drop-zone" id="dropZone">
+      <div class="icon">📷</div>
+      <p>Click to choose a photo</p>
+      <p class="hint">or drag &amp; drop here · JPG, PNG, HEIC · up to 20 MB</p>
+    </div>
+
+    <input type="file" id="fileInput" accept="image/*" />
+
+    <div class="preview-wrap" id="previewWrap">
+      <img id="previewImg" src="" alt="Preview" />
+      <p class="preview-name" id="previewName"></p>
+      <button class="change-btn" id="changeBtn">Choose a different photo</button>
+    </div>
+
+    <button class="send-btn" id="sendBtn" disabled>Send to Frame</button>
+    <div class="status" id="status"></div>
+
+    <p class="footer">Photos are sent directly to the Wongs' Skylight frame ✨</p>
+  </div>
+
+  <script>
+    // ─── CONFIGURATION ─────────────────────────────────────────────────────────
+    // Paste your Google Apps Script Web App URL here (from Deploy → Web app URL)
+    const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx439MiDBFCGuGysRIUUzZwACpPczTLe2i1U71qwVzkGSrG_XCFozEZ8uro2O-Q2oIr/exec";
+    // ───────────────────────────────────────────────────────────────────────────
+
+    const dropZone    = document.getElementById("dropZone");
+    const fileInput   = document.getElementById("fileInput");
+    const previewWrap = document.getElementById("previewWrap");
+    const previewImg  = document.getElementById("previewImg");
+    const previewName = document.getElementById("previewName");
+    const changeBtn   = document.getElementById("changeBtn");
+    const sendBtn     = document.getElementById("sendBtn");
+    const statusEl    = document.getElementById("status");
+
+    let selectedFile = null;
+
+    dropZone.addEventListener("click", () => fileInput.click());
+    changeBtn.addEventListener("click", () => fileInput.click());
+
+    dropZone.addEventListener("dragover", e => {
+      e.preventDefault();
+      dropZone.classList.add("drag-over");
+    });
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+    dropZone.addEventListener("drop", e => {
+      e.preventDefault();
+      dropZone.classList.remove("drag-over");
+      if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+    });
+
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files[0]) handleFile(fileInput.files[0]);
+    });
+
+    function handleFile(file) {
+      if (!file.type.startsWith("image/")) {
+        showStatus("Please choose an image file.", "error");
+        return;
+      }
+      if (file.size > 20 * 1024 * 1024) {
+        showStatus("That file is over 20 MB. Please choose a smaller one.", "error");
+        return;
+      }
+      selectedFile = file;
+      const reader = new FileReader();
+      reader.onload = e => {
+        previewImg.src = e.target.result;
+        previewName.textContent = file.name;
+        dropZone.style.display = "none";
+        previewWrap.style.display = "block";
+        sendBtn.disabled = false;
+        hideStatus();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    sendBtn.addEventListener("click", async () => {
+      if (!selectedFile) return;
+
+      sendBtn.disabled = true;
+      sendBtn.innerHTML = '<span class="spinner"></span>Sending…';
+      hideStatus();
+
+      try {
+        const base64 = await toBase64(selectedFile);
+        const base64Content = base64.split(",")[1]; // strip the data URL prefix
+
+        const response = await fetch(APPS_SCRIPT_URL, {
+          method: "POST",
+          // Apps Script requires no-cors to avoid a preflight redirect issue
+          mode: "no-cors",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            filename: selectedFile.name,
+            content:  base64Content,
+            mimetype: selectedFile.type,
+          }),
+        });
+
+        // With no-cors we can't read the response body, but if we got here
+        // without an exception the request was delivered successfully.
+        showStatus("🎉 Photo sent! It'll show up on the frame soon.", "success");
+
+        // Reset
+        selectedFile = null;
+        fileInput.value = "";
+        previewWrap.style.display = "none";
+        dropZone.style.display = "block";
+        sendBtn.disabled = true;
+      } catch (err) {
+        console.error(err);
+        showStatus("Something went wrong — please check your connection and try again.", "error");
+        sendBtn.disabled = false;
+      }
+
+      sendBtn.innerHTML = "Send to Frame";
+    });
+
+    function toBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload  = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function showStatus(msg, type) {
+      statusEl.textContent = msg;
+      statusEl.className   = "status " + type;
+    }
+
+    function hideStatus() {
+      statusEl.className = "status";
+    }
+  </script>
+</body>
+</html>
